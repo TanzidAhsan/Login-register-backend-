@@ -6,41 +6,55 @@ import Transaction from "../models/Transaction.js";
 export const createTransaction = async (req, res) => {
   try {
     const transaction = await Transaction.create({
-      user: req.user.id,
       ...req.body,
+      user: req.user.id,
     });
     res.status(201).json(transaction);
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
 /**
- * READ + FILTERS
- * /api/transactions?type=expense&category=Food&startDate=2025-01-01&endDate=2025-01-31&sort=desc
+ * GET with FILTER + PAGINATION + SEARCH
  */
 export const getTransactions = async (req, res) => {
   try {
-    const { type, category, startDate, endDate, sort } = req.query;
+    const {
+      type,
+      category,
+      search,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 10,
+    } = req.query;
 
     const query = { user: req.user.id };
 
     if (type) query.type = type;
     if (category) query.category = category;
+    if (search) query.note = { $regex: search, $options: "i" };
 
-    if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate);
+    if (startDate && endDate) {
+      query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
 
-    const transactions = await Transaction.find(query).sort({
-      date: sort === "asc" ? 1 : -1,
-    });
+    const total = await Transaction.countDocuments(query);
 
-    res.json(transactions);
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
+    const transactions = await Transaction.find(query)
+      .sort({ date: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    res.json({
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / limit),
+      transactions,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -49,23 +63,19 @@ export const getTransactions = async (req, res) => {
  */
 export const updateTransaction = async (req, res) => {
   try {
-    const transaction = await Transaction.findById(req.params.id);
-
-    if (!transaction)
-      return res.status(404).json({ message: "Transaction not found" });
-
-    if (transaction.user.toString() !== req.user.id)
-      return res.status(401).json({ message: "Unauthorized" });
-
-    const updatedTransaction = await Transaction.findByIdAndUpdate(
-      req.params.id,
+    const transaction = await Transaction.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.id },
       req.body,
       { new: true }
     );
 
-    res.json(updatedTransaction);
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
+    if (!transaction) {
+      return res.status(404).json({ message: "Transaction not found" });
+    }
+
+    res.json(transaction);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -74,17 +84,17 @@ export const updateTransaction = async (req, res) => {
  */
 export const deleteTransaction = async (req, res) => {
   try {
-    const transaction = await Transaction.findById(req.params.id);
+    const transaction = await Transaction.findOneAndDelete({
+      _id: req.params.id,
+      user: req.user.id,
+    });
 
-    if (!transaction)
+    if (!transaction) {
       return res.status(404).json({ message: "Transaction not found" });
+    }
 
-    if (transaction.user.toString() !== req.user.id)
-      return res.status(401).json({ message: "Unauthorized" });
-
-    await transaction.deleteOne();
     res.json({ message: "Transaction deleted" });
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };

@@ -5,18 +5,15 @@ import {
   updateTransaction,
   deleteTransaction,
 } from "../controllers/transaction.controller.js";
-import protect from "../middlewares/auth.middleware.js";
+import authMiddleware from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-router
-  .route("/")
-  .post(protect, createTransaction)
-  .get(protect, getTransactions);
+router.use(authMiddleware);
 
-router
-  .route("/:id")
-  .put(protect, updateTransaction)
-  .delete(protect, deleteTransaction);
+router.post("/", createTransaction);
+router.get("/", getTransactions);
+router.put("/:id", updateTransaction);
+router.delete("/:id", deleteTransaction);
 
 export default router;

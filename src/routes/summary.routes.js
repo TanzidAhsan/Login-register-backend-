@@ -1,9 +1,17 @@
 import express from "express";
-import { getSummary } from "../controllers/summary.controller.js";
-import protect from "../middlewares/auth.middleware.js";
+import {
+  typeSummary,
+  categorySummary,
+  monthlySummary,
+} from "../controllers/summary.controller.js";
+import authMiddleware from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-router.get("/", protect, getSummary);
+router.use(authMiddleware);
+
+router.get("/type", typeSummary);
+router.get("/category", categorySummary);
+router.get("/monthly", monthlySummary);
 
 export default router;
